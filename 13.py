@@ -18,6 +18,9 @@ import hmac
 import json
 import secrets
 from pathlib import Path
+import random
+from collections import defaultdict
+
 
 # ─── ACCOUNT SYSTEM (freemium: free vs premium) ────────────────────────────────
 # NOTE: This is a lightweight local JSON "database" suitable for a prototype /
@@ -2406,68 +2409,608 @@ def main():
 
     st.markdown("---")
 
-    # ════════════════════════════════════════════════════════════════════════════
-    # SECTION 11 · PREMIUM AI WELLNESS SUITE
-    # ════════════════════════════════════════════════════════════════════════════
-    st.markdown("""
-    <div class="section-header sh-green">
-        <div class="section-icon">⭐</div>
-        <div class="section-title">SECTION 11 — Premium AI Wellness Suite</div>
-    </div>
-    """, unsafe_allow_html=True)
+# ═══════════════════════════════════════════════════════════════
+# PREMIUM AI DIET ENGINE
+# PART 1
+# ═══════════════════════════════════════════════════════════════
 
-    if not st.session_state.get("premium"):
-        st.markdown("""
-        <div class="glass-card" style="text-align:center; padding:2rem;">
-            <div style="font-size:1.3rem; font-weight:800; color:#00d9ff; margin-bottom:0.5rem">🔒 Premium Features Locked</div>
-            <div style="color:#94a3b8; margin-bottom:1rem">
-            Unlock the AI Diet Plan, MBTI Personality Calculator, Sleep Quality Analyzer,
-            and Stress Assessment — all tailored to your health report.
-            </div>
-        </div>
-        """, unsafe_allow_html=True)
-        if st.button("⭐ Upgrade to Premium Now", key="upgrade_btn_section11"):
-            set_premium(st.session_state.user_key, True)
-            st.session_state.premium = True
-            st.success("🎉 You're now Premium!")
-            st.rerun()
-    else:
-        tab_diet, tab_mbti, tab_sleep, tab_stress = st.tabs(
-            ["🥗 AI Diet Plan", "🧠 MBTI Calculator", "😴 Sleep Quality", "💆 Stress Assessment"]
+BMI_RULES = {
+    "Underweight": {
+        "goal": "Healthy Weight Gain",
+        "calorie_factor": 1.20,
+        "protein_factor": 1.30,
+        "water": 3.0
+    },
+    "Normal": {
+        "goal": "Maintain Healthy Weight",
+        "calorie_factor": 1.00,
+        "protein_factor": 1.00,
+        "water": 2.8
+    },
+    "Overweight": {
+        "goal": "Weight Loss",
+        "calorie_factor": 0.85,
+        "protein_factor": 1.20,
+        "water": 3.2
+    },
+    "Obese": {
+        "goal": "Reduce Body Fat",
+        "calorie_factor": 0.75,
+        "protein_factor": 1.35,
+        "water": 3.5
+    }
+}
+
+
+def get_glucose_status(risk):
+    r = str(risk).lower()
+
+    if "high" in r:
+        return "High"
+
+    if "moderate" in r:
+        return "Moderate"
+
+    return "Normal"
+
+
+def get_ai_targets(bmi_cat, diabetes_type, risk):
+
+    rule = BMI_RULES.get(
+        bmi_cat,
+        BMI_RULES["Normal"]
+    )
+
+    glucose = get_glucose_status(risk)
+
+    calories = int(2200 * rule["calorie_factor"])
+    protein = int(70 * rule["protein_factor"])
+    water = rule["water"]
+
+    carbs = 250
+    fiber = 30
+
+    if glucose == "High":
+        carbs = 170
+        fiber = 40
+
+    elif glucose == "Moderate":
+        carbs = 210
+        fiber = 35
+
+    if diabetes_type != "None":
+        carbs -= 20
+        fiber += 5
+
+    return {
+
+        "goal": rule["goal"],
+
+        "calories": calories,
+
+        "protein": protein,
+
+        "carbs": carbs,
+
+        "fiber": fiber,
+
+        "water": water,
+
+        "glucose": glucose
+    }
+
+
+# ═══════════════════════════════════════════════════════════════
+# FOOD SCORING AI
+# ═══════════════════════════════════════════════════════════════
+
+def score_food(food, targets):
+
+    score = 50
+
+    protein = food.get("protein", 0)
+    carbs = food.get("carbs", 0)
+    calories = food.get("calories", 0)
+
+    category = str(food.get("category", "")).lower()
+
+    # Protein preference
+
+    score += protein * 3
+
+    # Fiber rich foods
+
+    if category in [
+        "vegetable",
+        "fruit",
+        "whole grain",
+        "salad"
+    ]:
+        score += 18
+
+    # High glucose
+
+    if targets["glucose"] == "High":
+
+        if carbs > 35:
+            score -= 20
+
+        if calories > 450:
+            score -= 12
+
+    # Weight loss
+
+    if targets["goal"] == "Weight Loss":
+
+        if calories > 350:
+            score -= 18
+
+    # Weight gain
+
+    if targets["goal"] == "Healthy Weight Gain":
+
+        if calories > 300:
+            score += 15
+
+    # Diabetic friendly bonus
+
+    diabetic_keywords = [
+
+        "oats",
+
+        "brown rice",
+
+        "broccoli",
+
+        "spinach",
+
+        "dal",
+
+        "paneer",
+
+        "egg",
+
+        "fish",
+
+        "chicken",
+
+        "apple",
+
+        "almond"
+
+    ]
+
+    name = str(food.get("name", "")).lower()
+
+    if any(k in name for k in diabetic_keywords):
+        score += 15
+
+    return score
+
+
+# ═══════════════════════════════════════════════════════════════
+# AI FOOD SELECTOR
+# ═══════════════════════════════════════════════════════════════
+
+def rank_foods(food_db, targets):
+
+    ranked = []
+
+    for food in food_db:
+
+        s = score_food(food, targets)
+
+        ranked.append((s, food))
+
+    ranked.sort(
+        key=lambda x: x[0],
+        reverse=True
+    )
+
+    return [x[1] for x in ranked]
+
+
+# ═══════════════════════════════════════════════════════════════
+# AI HEALTH ANALYSIS
+# ═══════════════════════════════════════════════════════════════
+
+def generate_health_analysis(bmi_cat, diabetes_type, risk):
+
+    targets = get_ai_targets(
+        bmi_cat,
+        diabetes_type,
+        risk
+    )
+
+    findings = []
+
+    if bmi_cat == "Underweight":
+
+        findings.append(
+            "🔵 BMI indicates you are underweight. Increase nutritious calorie intake."
         )
-        with tab_diet:
-            render_diet_plan(diabetes_type, bmi_cat, risk)
-        with tab_mbti:
-            render_mbti_calculator()
-        with tab_sleep:
-            render_sleep_quality()
-        with tab_stress:
-            render_stress_assessment()
+
+    elif bmi_cat == "Normal":
+
+        findings.append(
+            "🟢 Your BMI is within a healthy range."
+        )
+
+    elif bmi_cat == "Overweight":
+
+        findings.append(
+            "🟠 BMI suggests excess body weight. Moderate calorie reduction is recommended."
+        )
+
+    else:
+
+        findings.append(
+            "🔴 BMI indicates obesity. Focus on weight reduction and fibre-rich foods."
+        )
+
+    if targets["glucose"] == "High":
+
+        findings.append(
+            "🟠 Blood glucose risk is elevated. Low Glycemic Index foods are recommended."
+        )
+
+    elif targets["glucose"] == "Moderate":
+
+        findings.append(
+            "🟡 Glucose is slightly elevated. Reduce refined carbohydrates."
+        )
+
+    else:
+
+        findings.append(
+            "🟢 Blood glucose appears within a healthy range."
+        )
+
+    if diabetes_type != "None":
+
+        findings.append(
+            f"🩺 Diabetes Type: {diabetes_type}. Meals will emphasize controlled carbohydrate portions."
+        )
+
+    findings.append(
+        f"🎯 Primary Goal: {targets['goal']}"
+    )
+
+    return findings, targets
+    # ═══════════════════════════════════════════════════════════════
+# PREMIUM AI DIET ENGINE
+# PART 2 - MEAL GENERATOR
+# ═══════════════════════════════════════════════════════════════
+
+MEAL_TIMES = {
+    "Breakfast": "7:30 AM",
+    "Morning Snack": "10:30 AM",
+    "Lunch": "1:00 PM",
+    "Evening Snack": "4:30 PM",
+    "Dinner": "8:00 PM"
+}
+
+
+def classify_food(food):
+
+    name = str(food.get("name", "")).lower()
+    category = str(food.get("category", "")).lower()
+
+    if any(x in name for x in [
+        "oats","bread","roti","paratha","poha",
+        "idli","dosa","upma","cornflakes","milk",
+        "egg","banana"
+    ]):
+        return "Breakfast"
+
+    if any(x in name for x in [
+        "almond","walnut","apple","orange",
+        "fruit","chana","sprout","peanut",
+        "yogurt","curd"
+    ]):
+        return "Snack"
+
+    if any(x in name for x in [
+        "rice","dal","chicken","fish",
+        "paneer","roti","vegetable",
+        "broccoli","spinach","rajma",
+        "tofu","salad"
+    ]):
+        return "Lunch"
+
+    if category in ["fruit"]:
+        return "Snack"
+
+    if category in ["vegetable"]:
+        return "Lunch"
+
+    return "Dinner"
+
+
+def serving_size(food, goal):
+
+    calories = food.get("calories", 100)
+
+    if goal == "Weight Loss":
+
+        if calories > 300:
+            return "100 g"
+
+        return "150 g"
+
+    elif goal == "Healthy Weight Gain":
+
+        if calories < 200:
+            return "250 g"
+
+        return "200 g"
+
+    return "150 g"
+
+
+def meal_reason(food, targets):
+
+    protein = food.get("protein", 0)
+    carbs = food.get("carbs", 0)
+
+    reasons = []
+
+    if protein >= 15:
+        reasons.append(
+            "High-quality protein supports muscle health."
+        )
+
+    if carbs <= 25:
+        reasons.append(
+            "Helps reduce blood sugar spikes."
+        )
+
+    if targets["glucose"] == "High":
+        reasons.append(
+            "Selected because it is suitable for glucose management."
+        )
+
+    if targets["goal"] == "Weight Loss":
+        reasons.append(
+            "Supports healthy calorie control."
+        )
+
+    if targets["goal"] == "Healthy Weight Gain":
+        reasons.append(
+            "Provides additional healthy energy."
+        )
+
+    if not reasons:
+        reasons.append(
+            "Provides balanced nutrition."
+        )
+
+    return " ".join(reasons)
+
+
+# ═══════════════════════════════════════════════════════════════
+# BUILD WHOLE DAY PLAN
+# ═══════════════════════════════════════════════════════════════
+
+def generate_day_plan(food_db, bmi_cat, diabetes_type, risk):
+
+    findings, targets = generate_health_analysis(
+        bmi_cat,
+        diabetes_type,
+        risk
+    )
+
+    ranked = rank_foods(
+        food_db,
+        targets
+    )
+
+    meals = defaultdict(list)
+
+    used = set()
+
+    for food in ranked:
+
+        name = food.get("name")
+
+        if name in used:
+            continue
+
+        meal = classify_food(food)
+
+        if len(meals[meal]) < 4:
+
+            meals[meal].append({
+
+                "food": food,
+
+                "qty": serving_size(
+                    food,
+                    targets["goal"]
+                ),
+
+                "reason": meal_reason(
+                    food,
+                    targets
+                )
+
+            })
+
+            used.add(name)
+
+    return {
+
+        "targets": targets,
+
+        "findings": findings,
+
+        "meals": meals
+
+    }
+
+
+# ═══════════════════════════════════════════════════════════════
+# SHOPPING LIST
+# ═══════════════════════════════════════════════════════════════
+
+def shopping_list(plan):
+
+    items = []
+
+    for meal in plan["meals"].values():
+
+        for item in meal:
+
+            items.append(
+
+                item["food"]["name"]
+
+            )
+
+    return sorted(set(items))
+
+
+# ═══════════════════════════════════════════════════════════════
+# DAILY WATER SCHEDULE
+# ═══════════════════════════════════════════════════════════════
+
+def water_schedule(targets):
+
+    total = targets["water"]
+
+    return [
+
+        ("7:00 AM","300 ml"),
+
+        ("9:00 AM","300 ml"),
+
+        ("11:00 AM","400 ml"),
+
+        ("1:00 PM","300 ml"),
+
+        ("3:00 PM","400 ml"),
+
+        ("5:00 PM","300 ml"),
+
+        ("7:00 PM","400 ml"),
+
+        ("9:00 PM",f"{int((total-2.4)*1000)} ml")
+
+    ]
+
+
+# ═══════════════════════════════════════════════════════════════
+# AI SUMMARY
+# ═══════════════════════════════════════════════════════════════
+
+def ai_summary(plan):
+
+    t = plan["targets"]
+
+    return (
+        f"Based on your BMI and glucose analysis, today's goal is "
+        f"'{t['goal']}'. Your meal plan emphasizes approximately "
+        f"{t['protein']} g of protein, {t['fiber']} g of fibre and "
+        f"{t['carbs']} g of carbohydrates while encouraging "
+        f"{t['water']} litres of water throughout the day. "
+        "Meals have been selected from the available food database "
+        "to support healthier glucose control and balanced nutrition."
+    )
+    # ==========================================================
+# TEMPORARY TEST FUNCTION
+# Delete this after Part 3 is added
+# ==========================================================
+
+def render_diet_plan(diabetes_type, bmi_cat, risk):
+
+    st.subheader("🤖 Premium AI Diet (Preview)")
+
+    plan = generate_day_plan(
+        FOOD_DB,
+        bmi_cat,
+        diabetes_type,
+        risk
+    )
+
+    st.success("AI Analysis Completed")
+
+    st.markdown("## 🩺 Health Analysis")
+
+    for item in plan["findings"]:
+        st.write(item)
 
     st.markdown("---")
 
-    # ════════════════════════════════════════════════════════════════════════════
-    # FOOTER DISCLAIMER
-    # ════════════════════════════════════════════════════════════════════════════
-    st.markdown("""
-    <div style="text-align:center; padding: 2rem 1rem 1rem; border-top: 1px solid rgba(0,217,255,0.2);">
-        <div style="font-size:0.9rem; font-weight:700; color:#ff3b3b; margin-bottom:0.5rem">
-            ⚠️ IMPORTANT DISCLAIMER
-        </div>
-        <div style="font-size:0.8rem; color:#475569; max-width:700px; margin:0 auto; line-height:1.7">
-            GlucoVision AI is an <strong style="color:#94a3b8">educational prototype</strong> created for
-            science fair demonstration purposes. It is <strong style="color:#ff3b3b">NOT a medical device</strong>
-            and is NOT intended for diagnosis, treatment, or any form of medical decision-making.
-            The glucose predictions and health scores are generated by simplified educational models
-            and do not reflect clinical accuracy. Always consult a qualified healthcare professional
-            for any medical concerns.
-        </div>
-        <div style="font-size:0.72rem; color:#334155; margin-top:1rem">
-            GlucoVision AI v1.0 · Science Fair Edition · Built with Streamlit + Plotly + ReportLab
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
+    st.markdown("## 🎯 Daily Targets")
 
+    t = plan["targets"]
 
-if __name__ == "__main__":
-    main()
+    c1, c2, c3 = st.columns(3)
+
+    c1.metric("Calories", f"{t['calories']} kcal")
+    c2.metric("Protein", f"{t['protein']} g")
+    c3.metric("Carbs", f"{t['carbs']} g")
+
+    c1, c2, c3 = st.columns(3)
+
+    c1.metric("Fiber", f"{t['fiber']} g")
+    c2.metric("Water", f"{t['water']} L")
+    c3.metric("Goal", t["goal"])
+
+    st.markdown("---")
+
+    meals = plan["meals"]
+
+    for meal in [
+        "Breakfast",
+        "Snack",
+        "Lunch",
+        "Dinner"
+    ]:
+
+        if meal not in meals:
+            continue
+
+        st.subheader(meal)
+
+        for item in meals[meal]:
+
+            food = item["food"]
+
+            st.markdown(
+                f"""
+**🍽 {food['name']}**
+
+Quantity : **{item['qty']}**
+
+Calories : **{food.get('calories',0)} kcal**
+
+Protein : **{food.get('protein',0)} g**
+
+Carbs : **{food.get('carbs',0)} g**
+
+💡 {item['reason']}
+"""
+            )
+
+        st.markdown("---")
+
+    st.subheader("💧 Water Schedule")
+
+    for tm, qty in water_schedule(t):
+
+        st.write(f"🕒 {tm} — {qty}")
+
+    st.markdown("---")
+
+    st.subheader("🛒 Shopping List")
+
+    for food in shopping_list(plan):
+
+        st.write("✅", food)
+
+    st.markdown("---")
+
+    st.subheader("🤖 AI Summary")
+
+    st.info(ai_summary(plan))
