@@ -21,6 +21,36 @@ from pathlib import Path
 import random
 from collections import defaultdict
 genai.configure(api_key="AQ.Ab8RN6K9MlT9BIPsEAIPmkmzMayTbyf7NxKvMpHM0GtcKWzk7w")
+import streamlit as st
+import pandas as pd
+import numpy as np
+import plotly.graph_objects as go
+import plotly.express as px
+from plotly.subplots import make_subplots
+from datetime import datetime, timedelta
+import io
+import math
+import hashlib
+import hmac
+import json
+import secrets
+from pathlib import Path
+import random
+from collections import defaultdict, Counter
+
+try:
+    import google.generativeai as genai
+except Exception:
+    try:
+        import google.generativeai as genai
+    except Exception:
+        genai = None
+
+if "genai" in globals() and genai is not None:
+    try:
+        genai.configure(api_key="AQ.Ab8RN6K9MlT9BIPsEAIPmkmzMayTbyf7NxKvMpHM0GtcKWzk7w")
+    except Exception:
+        pass
 
 model = genai.GenerativeModel("gemini-2.5-flash")
 
@@ -2355,6 +2385,7 @@ def main():
         st.error("🚨 Glucose may drop into hypoglycemia range. Monitor closely and have fast-acting carbohydrates (juice, glucose tablets) available.")
 
     st.markdown("---")
+
 # SECTION 10 · EXPORT REPORT (PDF)
 st.markdown("""
 <div class="section-header sh-blue">
@@ -2408,10 +2439,7 @@ with col_exp2:
 
 st.markdown("---")
 
-# ════════════════════════════════════════════════════════════════════════════
 # SECTION 11 · PREMIUM AI NUTRITION COACH
-# ════════════════════════════════════════════════════════════════════════════
-
 def _diet_seed(diabetes_type, bmi_cat, risk):
     raw = f"{diabetes_type}|{bmi_cat}|{risk}"
     return int(hashlib.md5(raw.encode("utf-8")).hexdigest(), 16) % (10**8)
