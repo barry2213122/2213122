@@ -2916,4 +2916,42 @@ def ai_summary(plan):
         "Meals have been selected from the available food database "
         "to support healthier glucose control and balanced nutrition."
     )
-  
+  # ==========================================================
+# TEMPORARY ENDING
+# REMOVE THIS AFTER PART 3 IS ADDED
+# ==========================================================
+
+def render_diet_plan(diabetes_type, bmi_cat, risk):
+    st.info("🚧 Premium AI Diet Plan is currently under development.")
+
+    findings, targets = generate_health_analysis(
+        bmi_cat,
+        diabetes_type,
+        risk
+    )
+
+    st.subheader("🩺 AI Health Analysis")
+
+    for item in findings:
+        st.write("•", item)
+
+    st.subheader("🎯 Daily Targets")
+
+    c1, c2, c3 = st.columns(3)
+
+    c1.metric("Calories", f"{targets['calories']} kcal")
+    c2.metric("Protein", f"{targets['protein']} g")
+    c3.metric("Carbs", f"{targets['carbs']} g")
+
+    c1, c2, c3 = st.columns(3)
+
+    c1.metric("Fiber", f"{targets['fiber']} g")
+    c2.metric("Water", f"{targets['water']} L")
+    c3.metric("Goal", targets["goal"])
+
+    st.success("✅ Part 1 & Part 2 are working correctly.")
+
+    st.warning(
+        "Tomorrow Part 3 will generate the complete AI meal plan with "
+        "Breakfast, Lunch, Dinner, Snacks, Shopping List, and Premium UI."
+    )
