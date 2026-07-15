@@ -19,41 +19,30 @@ import json
 import secrets
 from pathlib import Path
 import random
-from collections import defaultdict
-genai.configure(api_key="AQ.Ab8RN6K9MlT9BIPsEAIPmkmzMayTbyf7NxKvMpHM0GtcKWzk7w")
-import streamlit as st
-import pandas as pd
-import numpy as np
-import plotly.graph_objects as go
-import plotly.express as px
-from plotly.subplots import make_subplots
-from datetime import datetime, timedelta
-import io
-import math
-import hashlib
-import hmac
-import json
-import secrets
-from pathlib import Path
-import random
 from collections import defaultdict, Counter
 
 try:
     import google.generativeai as genai
 except Exception:
-    try:
-        import google.generativeai as genai
-    except Exception:
-        genai = None
+    genai = None
 
-if "genai" in globals() and genai is not None:
+GEMINI_API_KEY = "AQ.Ab8RN6IbP62xQJ1qXoEf5L6yKA3pFSv5n_rxwhdqkfZWYGx5_A"
+
+if genai is not None:
     try:
-        genai.configure(api_key="AQ.Ab8RN6K9MlT9BIPsEAIPmkmzMayTbyf7NxKvMpHM0GtcKWzk7w")
+        genai.configure(api_key=GEMINI_API_KEY)
     except Exception:
         pass
 
-model = genai.GenerativeModel("gemini-2.5-flash")
-
+model = None
+if genai is not None:
+    try:
+        model = genai.GenerativeModel("gemini-2.5-flash")
+    except Exception:
+        try:
+            model = genai.GenerativeModel("gemini-1.5-flash")
+        except Exception:
+            model = None
 # ─── ACCOUNT SYSTEM (freemium: free vs premium) ────────────────────────────────
 # NOTE: This is a lightweight local JSON "database" suitable for a prototype /
 # science-fair demo. It is NOT production-grade security (no HTTPS enforcement,
