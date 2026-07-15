@@ -181,7 +181,6 @@ FOOD_DB = [
     {"name": "Curd (Low Fat)", "calories": 56, "protein": 3.4, "carbs": 7.7, "fat": 1.5, "fibre": 0, "category": "dairy", "meal": ["Lunch", "Snack"], "gi": 36},
     {"name": "Buttermilk (Chaas)", "calories": 40, "protein": 3, "carbs": 4, "fat": 1, "fibre": 0, "category": "dairy", "meal": ["Lunch", "Snack"], "gi": 30},
     {"name": "Sprouts Salad", "calories": 45, "protein": 4, "carbs": 8, "fat": 0.5, "fibre": 3, "category": "protein", "meal": ["Breakfast", "Snack"], "gi": 25}
-FOOD_DB = {
     "Cooked Rice (white) (100 g)": {"calories": 130.0, "carbs": 28.0, "protein": 2.7, "fat": 0.3},
     "Wheat Roti / Chapati (1 medium (40 g))": {"calories": 104.0, "carbs": 20.0, "protein": 3.0, "fat": 1.7},
     "Whole Wheat Flour (Atta) (100 g (raw))": {"calories": 341.0, "carbs": 72.0, "protein": 12.0, "fat": 1.7},
