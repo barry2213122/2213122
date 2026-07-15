@@ -2410,550 +2410,490 @@ def main():
                 st.success("✅ PDF generated successfully!")
 
     st.markdown("---")
+    def _diet_seed(diabetes_type, bmi_cat, risk):
+    raw = f"{diabetes_type}|{bmi_cat}|{risk}"
+    return int(hashlib.md5(raw.encode("utf-8")).hexdigest(), 16) % (10**8)
 
-# ═══════════════════════════════════════════════════════════════
-# PREMIUM AI DIET ENGINE
-# PART 1
-# ═══════════════════════════════════════════════════════════════
+def _safe_lower(x):
+    return str(x).strip().lower()
 
-BMI_RULES = {
-    "Underweight": {
-        "goal": "Healthy Weight Gain",
-        "calorie_factor": 1.20,
-        "protein_factor": 1.30,
-        "water": 3.0
-    },
-    "Normal": {
-        "goal": "Maintain Healthy Weight",
-        "calorie_factor": 1.00,
-        "protein_factor": 1.00,
-        "water": 2.8
-    },
-    "Overweight": {
-        "goal": "Weight Loss",
-        "calorie_factor": 0.85,
-        "protein_factor": 1.20,
-        "water": 3.2
-    },
-    "Obese": {
-        "goal": "Reduce Body Fat",
-        "calorie_factor": 0.75,
-        "protein_factor": 1.35,
-        "water": 3.5
-    }
-}
-
-
-def get_glucose_status(risk):
-    r = str(risk).lower()
-
-    if "high" in r:
-        return "High"
-
-    if "moderate" in r:
-        return "Moderate"
-
-    return "Normal"
-
-
-def get_ai_targets(bmi_cat, diabetes_type, risk):
-
-    rule = BMI_RULES.get(
-        bmi_cat,
-        BMI_RULES["Normal"]
-    )
-
-    glucose = get_glucose_status(risk)
-
-    calories = int(2200 * rule["calorie_factor"])
-    protein = int(70 * rule["protein_factor"])
-    water = rule["water"]
-
-    carbs = 250
-    fiber = 30
-
-    if glucose == "High":
-        carbs = 170
-        fiber = 40
-
-    elif glucose == "Moderate":
-        carbs = 210
-        fiber = 35
-
-    if diabetes_type != "None":
-        carbs -= 20
-        fiber += 5
-
+def _get_food_fields(item):
+    if isinstance(item, dict):
+        name = item.get("food_name") or item.get("name") or item.get("food") or item.get("item") or "Food"
+        category = item.get("category") or item.get("food_category") or item.get("type") or "General"
+        serving = item.get("serving_size") or item.get("serving") or item.get("portion") or "1 serving"
+        calories = item.get("calories") or item.get("kcal") or item.get("energy") or 0
+        protein = item.get("protein") or 0
+        carbs = item.get("carbohydrates") or item.get("carbs") or item.get("carb") or 0
+        fiber = item.get("fiber") or item.get("fibre") or 0
+        gi = item.get("gi") or item.get("glycemic_index") or item.get("glycaemic_index")
+        return {
+            "name": str(name),
+            "category": str(category),
+            "serving": str(serving),
+            "calories": float(calories) if calories is not None and str(calories) != "" else 0.0,
+            "protein": float(protein) if protein is not None and str(protein) != "" else 0.0,
+            "carbs": float(carbs) if carbs is not None and str(carbs) != "" else 0.0,
+            "fiber": float(fiber) if fiber is not None and str(fiber) != "" else 0.0,
+            "gi": float(gi) if gi is not None and str(gi) != "" else None,
+        }
+    vals = list(item) if hasattr(item, "__iter__") else [str(item)]
     return {
-
-        "goal": rule["goal"],
-
-        "calories": calories,
-
-        "protein": protein,
-
-        "carbs": carbs,
-
-        "fiber": fiber,
-
-        "water": water,
-
-        "glucose": glucose
+        "name": str(vals[0]) if len(vals) > 0 else "Food",
+        "category": str(vals[1]) if len(vals) > 1 else "General",
+        "serving": str(vals[2]) if len(vals) > 2 else "1 serving",
+        "calories": float(vals[3]) if len(vals) > 3 and vals[3] is not None else 0.0,
+        "protein": float(vals[4]) if len(vals) > 4 and vals[4] is not None else 0.0,
+        "carbs": float(vals[5]) if len(vals) > 5 and vals[5] is not None else 0.0,
+        "fiber": float(vals[6]) if len(vals) > 6 and vals[6] is not None else 0.0,
+        "gi": float(vals[7]) if len(vals) > 7 and vals[7] is not None and str(vals[7]) != "" else None,
     }
 
+def _categorize_food(food):
+    text = f"{food['name']} {food['category']}".lower()
+    if any(k in text for k in ["egg", "paneer", "tofu", "lentil", "dal", "beans", "chicken", "fish", "curd", "yogurt", "milk", "soy", "sprout"]):
+        return "protein"
+    if any(k in text for k in ["salad", "spinach", "broccoli", "cauliflower", "cucumber", "tomato", "leafy", "vegetable", "veg", "greens"]):
+        return "veg"
+    if any(k in text for k in ["oats", "brown rice", "quinoa", "millet", "roti", "whole", "grain", "barley", "bread", "cereal"]):
+        return "complex_carb"
+    if any(k in text for k in ["nuts", "seeds", "almond", "walnut", "chia", "flax", "peanut", "pistachio"]):
+        return "fat_snack"
+    if any(k in text for k in ["apple", "guava", "berries", "orange", "pear", "papaya", "fruit"]):
+        return "fruit"
+    return "other"
 
-# ═══════════════════════════════════════════════════════════════
-# FOOD SCORING AI
-# ═══════════════════════════════════════════════════════════════
+def _goal_profile(diabetes_type, bmi_cat, risk):
+    d = _safe_lower(diabetes_type)
+    b = _safe_lower(bmi_cat)
+    r = _safe_lower(risk)
+    profile = {
+        "calorie_mult": 1.0,
+        "protein_mult": 1.0,
+        "carb_mult": 1.0,
+        "fiber_mult": 1.0,
+        "water_l": 2.5,
+        "goal_text": "Balanced nutrition.",
+        "avoid": [],
+        "prefer": [],
+        "carb_cap": "moderate",
+        "priority": [],
+    }
 
-def score_food(food, targets):
+    if "under" in b:
+        profile.update({
+            "calorie_mult": 1.2,
+            "protein_mult": 1.25,
+            "carb_mult": 1.1,
+            "fiber_mult": 1.0,
+            "goal_text": "Healthy weight gain with nutrient-dense meals.",
+            "prefer": ["protein", "complex_carb", "fat_snack", "fruit"],
+            "priority": ["calories", "protein"],
+        })
+    elif "normal" in b:
+        profile.update({
+            "calorie_mult": 1.0,
+            "protein_mult": 1.05,
+            "carb_mult": 1.0,
+            "fiber_mult": 1.0,
+            "goal_text": "Maintain balance with steady energy.",
+            "prefer": ["protein", "veg", "complex_carb", "fruit"],
+            "priority": ["balance"],
+        })
+    elif "over" in b:
+        profile.update({
+            "calorie_mult": 0.9,
+            "protein_mult": 1.2,
+            "carb_mult": 0.85,
+            "fiber_mult": 1.25,
+            "goal_text": "Support fat loss with controlled carbohydrates.",
+            "prefer": ["protein", "veg", "complex_carb"],
+            "avoid": ["fried", "sugary"],
+            "priority": ["fiber", "protein", "calories"],
+        })
+    elif "obese" in b:
+        profile.update({
+            "calorie_mult": 0.8,
+            "protein_mult": 1.25,
+            "carb_mult": 0.75,
+            "fiber_mult": 1.35,
+            "goal_text": "Create a lower-calorie, high-fibre plan for weight loss.",
+            "prefer": ["protein", "veg", "complex_carb"],
+            "avoid": ["fried", "sugary", "refined"],
+            "priority": ["fiber", "protein", "low_calorie"],
+        })
 
-    score = 50
+    if "high" in r or "risk" in r:
+        profile.update({
+            "carb_mult": profile["carb_mult"] * 0.8,
+            "fiber_mult": profile["fiber_mult"] * 1.25,
+            "goal_text": profile["goal_text"] + " Emphasis on low-GI foods and fibre.",
+            "avoid": list(set(profile["avoid"] + ["sugary", "refined", "sweet"])),
+            "prefer": list(set(profile["prefer"] + ["veg", "protein", "complex_carb"])),
+            "carb_cap": "low",
+            "priority": ["low_gi", "fiber", "carb_control"],
+        })
+    elif "low" in r:
+        profile["goal_text"] = profile["goal_text"] + " Keep meals balanced and sustainable."
 
-    protein = food.get("protein", 0)
-    carbs = food.get("carbs", 0)
-    calories = food.get("calories", 0)
+    if "type 1" in d or "type1" in d:
+        profile["goal_text"] = profile["goal_text"] + " Use steady carbohydrate portions."
+        profile["carb_cap"] = "moderate"
+    elif "type 2" in d or "type2" in d:
+        profile["goal_text"] = profile["goal_text"] + " Focus on fibre-rich, lower-GI choices."
+        profile["avoid"] = list(set(profile["avoid"] + ["refined", "sugary"]))
+    else:
+        profile["goal_text"] = profile["goal_text"] + " Use broad healthy eating patterns."
+    return profile
 
-    category = str(food.get("category", "")).lower()
+def _food_score(food, profile, meal_name, rng):
+    cal = food["calories"]
+    pro = food["protein"]
+    carb = food["carbs"]
+    fiber = food["fiber"]
+    cat = _categorize_food(food)
+    text = f"{food['name']} {food['category']}".lower()
 
-    # Protein preference
+    score = 0.0
+    score += pro * 3.4 * profile["protein_mult"]
+    score += fiber * 3.0 * profile["fiber_mult"]
+    score -= cal * 0.018 / max(profile["calorie_mult"], 0.7)
+    score -= max(carb - fiber, 0) * 0.9
 
-    score += protein * 3
+    if cat == "protein":
+        score += 10
+    elif cat == "veg":
+        score += 9
+    elif cat == "complex_carb":
+        score += 6
+    elif cat == "fruit":
+        score += 4
+    elif cat == "fat_snack":
+        score += 2
 
-    # Fiber rich foods
+    if any(k in text for k in profile["prefer"]):
+        score += 10
+    if any(k in text for k in profile["avoid"]):
+        score -= 14
+    if any(k in text for k in ["fried", "chips", "soda", "dessert", "cake", "pastry", "sweet"]):
+        score -= 20
 
-    if category in [
-        "vegetable",
-        "fruit",
-        "whole grain",
-        "salad"
-    ]:
-        score += 18
+    if profile["carb_cap"] == "low":
+        score -= carb * 0.7
+        if fiber >= 3:
+            score += 5
+    elif profile["carb_cap"] == "moderate":
+        score -= max(carb - 35, 0) * 0.4
 
-    # High glucose
+    meal_targets = {
+        "Breakfast": {"protein": 1.2, "carb": 1.1, "cal": 1.0},
+        "Morning Snack": {"protein": 0.8, "carb": 0.7, "cal": 0.7},
+        "Lunch": {"protein": 1.3, "carb": 1.2, "cal": 1.2},
+        "Evening Snack": {"protein": 0.9, "carb": 0.8, "cal": 0.75},
+        "Dinner": {"protein": 1.25, "carb": 0.9, "cal": 1.0},
+    }.get(meal_name, {"protein": 1.0, "carb": 1.0, "cal": 1.0})
 
-    if targets["glucose"] == "High":
-
-        if carbs > 35:
-            score -= 20
-
-        if calories > 450:
-            score -= 12
-
-    # Weight loss
-
-    if targets["goal"] == "Weight Loss":
-
-        if calories > 350:
-            score -= 18
-
-    # Weight gain
-
-    if targets["goal"] == "Healthy Weight Gain":
-
-        if calories > 300:
-            score += 15
-
-    # Diabetic friendly bonus
-
-    diabetic_keywords = [
-
-        "oats",
-
-        "brown rice",
-
-        "broccoli",
-
-        "spinach",
-
-        "dal",
-
-        "paneer",
-
-        "egg",
-
-        "fish",
-
-        "chicken",
-
-        "apple",
-
-        "almond"
-
-    ]
-
-    name = str(food.get("name", "")).lower()
-
-    if any(k in name for k in diabetic_keywords):
-        score += 15
-
+    score += pro * meal_targets["protein"] * 0.8
+    score += fiber * 0.5
+    if meal_name in ["Breakfast", "Lunch"] and cat in ["protein", "complex_carb", "fruit", "veg"]:
+        score += 2
+    score += rng.uniform(-1.0, 1.0)
     return score
 
-
-# ═══════════════════════════════════════════════════════════════
-# AI FOOD SELECTOR
-# ═══════════════════════════════════════════════════════════════
-
-def rank_foods(food_db, targets):
-
-    ranked = []
-
-    for food in food_db:
-
-        s = score_food(food, targets)
-
-        ranked.append((s, food))
-
-    ranked.sort(
-        key=lambda x: x[0],
-        reverse=True
-    )
-
-    return [x[1] for x in ranked]
-
-
-# ═══════════════════════════════════════════════════════════════
-# AI HEALTH ANALYSIS
-# ═══════════════════════════════════════════════════════════════
-
-def generate_health_analysis(bmi_cat, diabetes_type, risk):
-
-    targets = get_ai_targets(
-        bmi_cat,
-        diabetes_type,
-        risk
-    )
-
-    findings = []
-
-    if bmi_cat == "Underweight":
-
-        findings.append(
-            "🔵 BMI indicates you are underweight. Increase nutritious calorie intake."
-        )
-
-    elif bmi_cat == "Normal":
-
-        findings.append(
-            "🟢 Your BMI is within a healthy range."
-        )
-
-    elif bmi_cat == "Overweight":
-
-        findings.append(
-            "🟠 BMI suggests excess body weight. Moderate calorie reduction is recommended."
-        )
-
-    else:
-
-        findings.append(
-            "🔴 BMI indicates obesity. Focus on weight reduction and fibre-rich foods."
-        )
-
-    if targets["glucose"] == "High":
-
-        findings.append(
-            "🟠 Blood glucose risk is elevated. Low Glycemic Index foods are recommended."
-        )
-
-    elif targets["glucose"] == "Moderate":
-
-        findings.append(
-            "🟡 Glucose is slightly elevated. Reduce refined carbohydrates."
-        )
-
-    else:
-
-        findings.append(
-            "🟢 Blood glucose appears within a healthy range."
-        )
-
-    if diabetes_type != "None":
-
-        findings.append(
-            f"🩺 Diabetes Type: {diabetes_type}. Meals will emphasize controlled carbohydrate portions."
-        )
-
-    findings.append(
-        f"🎯 Primary Goal: {targets['goal']}"
-    )
-
-    return findings, targets
-    # ═══════════════════════════════════════════════════════════════
-# PREMIUM AI DIET ENGINE
-# PART 2 - MEAL GENERATOR
-# ═══════════════════════════════════════════════════════════════
-
-MEAL_TIMES = {
-    "Breakfast": "7:30 AM",
-    "Morning Snack": "10:30 AM",
-    "Lunch": "1:00 PM",
-    "Evening Snack": "4:30 PM",
-    "Dinner": "8:00 PM"
-}
-
-
-def classify_food(food):
-
-    name = str(food.get("name", "")).lower()
-    category = str(food.get("category", "")).lower()
-
-    if any(x in name for x in [
-        "oats","bread","roti","paratha","poha",
-        "idli","dosa","upma","cornflakes","milk",
-        "egg","banana"
-    ]):
-        return "Breakfast"
-
-    if any(x in name for x in [
-        "almond","walnut","apple","orange",
-        "fruit","chana","sprout","peanut",
-        "yogurt","curd"
-    ]):
-        return "Snack"
-
-    if any(x in name for x in [
-        "rice","dal","chicken","fish",
-        "paneer","roti","vegetable",
-        "broccoli","spinach","rajma",
-        "tofu","salad"
-    ]):
-        return "Lunch"
-
-    if category in ["fruit"]:
-        return "Snack"
-
-    if category in ["vegetable"]:
-        return "Lunch"
-
-    return "Dinner"
-
-
-def serving_size(food, goal):
-
-    calories = food.get("calories", 100)
-
-    if goal == "Weight Loss":
-
-        if calories > 300:
-            return "100 g"
-
-        return "150 g"
-
-    elif goal == "Healthy Weight Gain":
-
-        if calories < 200:
-            return "250 g"
-
-        return "200 g"
-
-    return "150 g"
-
-
-def meal_reason(food, targets):
-
-    protein = food.get("protein", 0)
-    carbs = food.get("carbs", 0)
-
-    reasons = []
-
-    if protein >= 15:
-        reasons.append(
-            "High-quality protein supports muscle health."
-        )
-
-    if carbs <= 25:
-        reasons.append(
-            "Helps reduce blood sugar spikes."
-        )
-
-    if targets["glucose"] == "High":
-        reasons.append(
-            "Selected because it is suitable for glucose management."
-        )
-
-    if targets["goal"] == "Weight Loss":
-        reasons.append(
-            "Supports healthy calorie control."
-        )
-
-    if targets["goal"] == "Healthy Weight Gain":
-        reasons.append(
-            "Provides additional healthy energy."
-        )
-
-    if not reasons:
-        reasons.append(
-            "Provides balanced nutrition."
-        )
-
-    return " ".join(reasons)
-
-
-# ═══════════════════════════════════════════════════════════════
-# BUILD WHOLE DAY PLAN
-# ═══════════════════════════════════════════════════════════════
-
-def generate_day_plan(food_db, bmi_cat, diabetes_type, risk):
-
-    findings, targets = generate_health_analysis(
-        bmi_cat,
-        diabetes_type,
-        risk
-    )
-
-    ranked = rank_foods(
-        food_db,
-        targets
-    )
-
-    meals = defaultdict(list)
-
+def _select_meal_foods(food_items, profile, seed):
+    rng = random.Random(seed)
+    foods = [_get_food_fields(x) for x in food_items if x is not None]
+    meal_names = ["Breakfast", "Morning Snack", "Lunch", "Evening Snack", "Dinner"]
+    scored = {}
+    for meal in meal_names:
+        scored[meal] = sorted([( _food_score(f, profile, meal, rng), f) for f in foods], key=lambda x: x[0], reverse=True)
+
+    chosen = []
+    desired = {"Breakfast": 3, "Morning Snack": 1, "Lunch": 3, "Evening Snack": 1, "Dinner": 3}
     used = set()
+    for meal in meal_names:
+        picks = []
+        for s, f in scored[meal]:
+            key = (f["name"], f["serving"])
+            if key in used:
+                continue
+            picks.append((s, f))
+            used.add(key)
+            if len(picks) == desired[meal]:
+                break
+        if not picks and scored[meal]:
+            picks = scored[meal][:1]
+        chosen.append((meal, picks))
+    return chosen
 
-    for food in ranked:
+def _meal_reason(food, profile, meal_name):
+    cat = _categorize_food(food)
+    reasons = []
+    if food["protein"] >= 8:
+        reasons.append("high protein")
+    if food["fiber"] >= 3:
+        reasons.append("fibre support")
+    if food["calories"] < 180:
+        reasons.append("light calories")
+    if cat == "protein":
+        reasons.append("supports satiety")
+    if cat == "veg":
+        reasons.append("micronutrient-rich")
+    if cat == "complex_carb":
+        reasons.append("slow-release energy")
+    if profile["carb_cap"] == "low" and food["carbs"] <= 25:
+        reasons.append("controlled carbohydrates")
+    if "weight loss" in profile["goal_text"].lower() and food["calories"] <= 220:
+        reasons.append("helps calorie control")
+    if "weight gain" in profile["goal_text"].lower() and food["calories"] >= 150:
+        reasons.append("supports healthy calories")
+    if not reasons:
+        reasons.append("balanced fit for the meal window")
+    return ", ".join(reasons[:3]).capitalize()
 
-        name = food.get("name")
+def _targets(profile, diabetes_type, bmi_cat, risk):
+    base_cal = 1800
+    b = _safe_lower(bmi_cat)
+    d = _safe_lower(diabetes_type)
+    r = _safe_lower(risk)
 
-        if name in used:
-            continue
+    if "under" in b:
+        base_cal = 2300
+    elif "normal" in b:
+        base_cal = 1900
+    elif "over" in b:
+        base_cal = 1700
+    elif "obese" in b:
+        base_cal = 1500
 
-        meal = classify_food(food)
+    if "type 1" in d or "type1" in d:
+        base_cal += 100
+    if "high" in r:
+        base_cal -= 150
 
-        if len(meals[meal]) < 4:
+    protein = 75
+    carb = 190
+    fiber = 28
 
-            meals[meal].append({
+    if "under" in b:
+        protein = 95
+        carb = 240
+        fiber = 26
+    elif "over" in b or "obese" in b:
+        protein = 90
+        carb = 150
+        fiber = 35
 
-                "food": food,
-
-                "qty": serving_size(
-                    food,
-                    targets["goal"]
-                ),
-
-                "reason": meal_reason(
-                    food,
-                    targets
-                )
-
-            })
-
-            used.add(name)
+    if "high" in r:
+        carb = max(120, carb - 30)
+        fiber += 8
 
     return {
-
-        "targets": targets,
-
-        "findings": findings,
-
-        "meals": meals
-
+        "calories": int(base_cal),
+        "protein": int(protein),
+        "carbs": int(carb),
+        "fiber": int(fiber),
+        "water": float(profile["water_l"]),
     }
 
-
-# ═══════════════════════════════════════════════════════════════
-# SHOPPING LIST
-# ═══════════════════════════════════════════════════════════════
-
-def shopping_list(plan):
-
-    items = []
-
-    for meal in plan["meals"].values():
-
-        for item in meal:
-
-            items.append(
-
-                item["food"]["name"]
-
-            )
-
-    return sorted(set(items))
-
-
-# ═══════════════════════════════════════════════════════════════
-# DAILY WATER SCHEDULE
-# ═══════════════════════════════════════════════════════════════
-
-def water_schedule(targets):
-
-    total = targets["water"]
-
-    return [
-
-        ("7:00 AM","300 ml"),
-
-        ("9:00 AM","300 ml"),
-
-        ("11:00 AM","400 ml"),
-
-        ("1:00 PM","300 ml"),
-
-        ("3:00 PM","400 ml"),
-
-        ("5:00 PM","300 ml"),
-
-        ("7:00 PM","400 ml"),
-
-        ("9:00 PM",f"{int((total-2.4)*1000)} ml")
-
-    ]
-
-
-# ═══════════════════════════════════════════════════════════════
-# AI SUMMARY
-# ═══════════════════════════════════════════════════════════════
-
-def ai_summary(plan):
-
-    t = plan["targets"]
-
-    return (
-        f"Based on your BMI and glucose analysis, today's goal is "
-        f"'{t['goal']}'. Your meal plan emphasizes approximately "
-        f"{t['protein']} g of protein, {t['fiber']} g of fibre and "
-        f"{t['carbs']} g of carbohydrates while encouraging "
-        f"{t['water']} litres of water throughout the day. "
-        "Meals have been selected from the available food database "
-        "to support healthier glucose control and balanced nutrition."
-    )
-  # ==========================================================
-# TEMPORARY ENDING
-# REMOVE THIS AFTER PART 3 IS ADDED
-# ==========================================================
+def _render_card(title, subtitle, body, accent="#4CAF50"):
+    st.markdown(f"""
+    <div style="
+        background: linear-gradient(135deg, rgba(15,23,42,0.95), rgba(17,24,39,0.92));
+        border: 1px solid rgba(255,255,255,0.08);
+        border-radius: 22px;
+        padding: 18px 18px 16px 18px;
+        box-shadow: 0 12px 30px rgba(0,0,0,0.18);
+        margin-bottom: 12px;
+    ">
+        <div style="font-size:18px;font-weight:800;color:{accent};margin-bottom:4px;">{title}</div>
+        <div style="font-size:13px;color:#B7C2D2;margin-bottom:10px;">{subtitle}</div>
+        <div style="font-size:14px;color:#E8EEF7;line-height:1.6;">{body}</div>
+    </div>
+    """, unsafe_allow_html=True)
 
 def render_diet_plan(diabetes_type, bmi_cat, risk):
-    st.info("🚧 Premium AI Diet Plan is currently under development.")
+    profile = _goal_profile(diabetes_type, bmi_cat, risk)
+    seed = _diet_seed(diabetes_type, bmi_cat, risk)
+    food_items = FOOD_DB if isinstance(FOOD_DB, list) else list(FOOD_DB.values()) if isinstance(FOOD_DB, dict) else []
+    meal_picks = _select_meal_foods(food_items, profile, seed)
+    targets = _targets(profile, diabetes_type, bmi_cat, risk)
 
-    findings, targets = generate_health_analysis(
-        bmi_cat,
-        diabetes_type,
-        risk
+    totals = {"calories": 0.0, "protein": 0.0, "carbs": 0.0, "fiber": 0.0}
+    shopping = []
+    avoid_set = set()
+    meal_rows = []
+
+    meal_time_labels = {
+        "Breakfast": "7:30 AM",
+        "Morning Snack": "10:30 AM",
+        "Lunch": "1:30 PM",
+        "Evening Snack": "4:30 PM",
+        "Dinner": "7:30 PM",
+    }
+
+    st.markdown("""
+    <style>
+    .gv-wrap {background: linear-gradient(180deg, #07111f 0%, #0b1630 45%, #07111f 100%); padding: 8px; border-radius: 26px;}
+    .gv-title {font-size: 30px; font-weight: 900; color: #F7FAFF; letter-spacing: 0.2px;}
+    .gv-sub {font-size: 14px; color: #B6C4D9; margin-top: 4px;}
+    </style>
+    """, unsafe_allow_html=True)
+
+    with st.container():
+        st.markdown(f"""
+        <div class="gv-wrap">
+            <div class="gv-title">🥗 Premium AI Nutrition Coach</div>
+            <div class="gv-sub">Personalized from health report signals, food scores, and meal-window balancing.</div>
+        </div>
+        """, unsafe_allow_html=True)
+
+    c1, c2, c3, c4 = st.columns(4)
+    with c1:
+        st.metric("BMI", bmi_cat)
+    with c2:
+        st.metric("Diabetes Type", diabetes_type)
+    with c3:
+        st.metric("Risk Level", risk)
+    with c4:
+        st.metric("Day Target", f"{targets['calories']} kcal")
+
+    st.progress(min(1.0, 0.45 + (targets["calories"] / 3000.0)))
+    c5, c6, c7, c8 = st.columns(4)
+    with c5:
+        st.metric("Protein Target", f"{targets['protein']} g")
+    with c6:
+        st.metric("Carb Target", f"{targets['carbs']} g")
+    with c7:
+        st.metric("Fiber Target", f"{targets['fiber']} g")
+    with c8:
+        st.metric("Water Target", f"{targets['water']} L")
+
+    st.markdown("## Daily Meal Plan")
+    for meal, picks in meal_picks:
+        with st.container():
+            st.markdown(f"""
+            <div style="
+                background: linear-gradient(135deg, rgba(37,99,235,0.18), rgba(16,185,129,0.12));
+                border: 1px solid rgba(255,255,255,0.08);
+                border-radius: 20px;
+                padding: 16px;
+                margin: 10px 0 14px 0;
+            ">
+                <div style="display:flex;justify-content:space-between;align-items:center;">
+                    <div style="font-size:20px;font-weight:800;color:#F3F7FF;">{meal}</div>
+                    <div style="font-size:13px;color:#A9B7CC;">{meal_time_labels.get(meal, "")}</div>
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
+            cols = st.columns(max(1, len(picks)))
+            for idx, (_, food) in enumerate(picks):
+                with cols[idx]:
+                    st.markdown(f"""
+                    <div style="
+                        background: rgba(8,15,28,0.96);
+                        border: 1px solid rgba(255,255,255,0.08);
+                        border-radius: 18px;
+                        padding: 16px;
+                        min-height: 240px;
+                        box-shadow: 0 10px 28px rgba(0,0,0,0.16);
+                    ">
+                        <div style="font-size:16px;font-weight:800;color:#7EE0A6;margin-bottom:6px;">{food['name']}</div>
+                        <div style="font-size:12px;color:#9FB0C8;margin-bottom:10px;">{food['category']}</div>
+                        <div style="font-size:13px;color:#E8EEF7;line-height:1.75;">
+                            <b>Serving:</b> {food['serving']}<br>
+                            <b>Calories:</b> {round(food['calories'],1)} kcal<br>
+                            <b>Protein:</b> {round(food['protein'],1)} g<br>
+                            <b>Carbohydrates:</b> {round(food['carbs'],1)} g<br>
+                            <b>Reason:</b> {_meal_reason(food, profile, meal)}
+                        </div>
+                    </div>
+                    """, unsafe_allow_html=True)
+                    meal_rows.append({
+                        "Meal": meal,
+                        "Meal Time": meal_time_labels.get(meal, ""),
+                        "Food Name": food["name"],
+                        "Serving Size": food["serving"],
+                        "Calories": round(food["calories"], 1),
+                        "Protein": round(food["protein"], 1),
+                        "Carbohydrates": round(food["carbs"], 1),
+                        "Reason why AI selected this meal": _meal_reason(food, profile, meal),
+                    })
+                    totals["calories"] += food["calories"]
+                    totals["protein"] += food["protein"]
+                    totals["carbs"] += food["carbs"]
+                    totals["fiber"] += food["fiber"]
+                    shopping.append(food["name"])
+                    if any(k in f"{food['name']} {food['category']}".lower() for k in ["fried", "soda", "cake", "pastry", "chips", "sweet", "refined", "white bread"]):
+                        avoid_set.add(food["name"])
+
+    st.markdown("## AI Health Analysis")
+    analysis = []
+    analysis.append(f"Your plan is built for {bmi_cat}, {diabetes_type}, and {risk} risk.")
+    analysis.append(profile["goal_text"])
+    if "high" in _safe_lower(risk):
+        analysis.append("The plan prioritizes low-GI, fibre-rich meals and tighter carbohydrate control.")
+    elif "low" in _safe_lower(risk):
+        analysis.append("The plan keeps meals balanced with steady energy and practical variety.")
+    if "under" in _safe_lower(bmi_cat):
+        analysis.append("Higher-calorie, protein-forward foods are favored to support healthy weight gain.")
+    elif "over" in _safe_lower(bmi_cat) or "obese" in _safe_lower(bmi_cat):
+        analysis.append("Lower-calorie, high-satiety foods are favored to support weight reduction.")
+    _render_card("AI Analysis", "Personalized nutrition logic", " ".join(analysis), accent="#60A5FA")
+
+    c9, c10, c11, c12 = st.columns(4)
+    with c9:
+        st.metric("Calories Target", f"{targets['calories']} kcal")
+    with c10:
+        st.metric("Protein Target", f"{targets['protein']} g")
+    with c11:
+        st.metric("Carb Target", f"{targets['carbs']} g")
+    with c12:
+        st.metric("Fiber Target", f"{targets['fiber']} g")
+
+    st.markdown("## Today's Goal")
+    st.markdown(profile["goal_text"])
+
+    st.markdown("## Foods To Avoid")
+    avoid_candidates = sorted(list(avoid_set))[:8]
+    if not avoid_candidates:
+        avoid_candidates = ["Sugary drinks", "Deep-fried snacks", "Refined flour foods", "Desserts"]
+    st.markdown("".join([f"- {x}\n" for x in avoid_candidates]))
+
+    st.markdown("## Better Alternatives")
+    alt_map = [
+        ("White bread", "Whole grain roti or multigrain toast"),
+        ("Sugary drinks", "Infused water or unsweetened buttermilk"),
+        ("Fried snacks", "Roasted chana or sprouts chaat"),
+        ("Refined cereals", "Oats, millets, or brown rice"),
+        ("Desserts", "Fruit with nuts or plain yogurt"),
+    ]
+    st.markdown("\n".join([f"- {a} → {b}" for a, b in alt_map]))
+
+    st.markdown("## Shopping List")
+    shopping_counter = Counter([_safe_lower(x) for x in shopping])
+    shopping_items = [k.title() for k, v in shopping_counter.most_common()]
+    st.markdown("".join([f"- {item}\n" for item in shopping_items]))
+
+    st.markdown("## Water Schedule")
+    water_schedule = [
+        "Upon waking: 1 glass.",
+        "Mid-morning: 1 glass.",
+        "Before lunch: 1 glass.",
+        "Mid-afternoon: 1 glass.",
+        "Before dinner: 1 glass.",
+        "Evening: 1 glass.",
+    ]
+    st.markdown("".join([f"- {x}\n" for x in water_schedule]))
+
+    st.markdown("## AI Summary")
+    summary = (
+        f"The AI selected {len(meal_rows)} meal items across five eating windows, emphasizing "
+        f"{profile['goal_text'].lower()} Expected totals are about {round(totals['calories'])} kcal, "
+        f"{round(totals['protein'])} g protein, {round(totals['carbs'])} g carbohydrates, "
+        f"and {round(totals['fiber'])} g fibre."
     )
+    _render_card("Today's Goal", "Complete daily guidance", summary, accent="#34D399")
+    return meal_rows
 
-    st.subheader("🩺 AI Health Analysis")
-
-    for item in findings:
-        st.write("•", item)
-
-    st.subheader("🎯 Daily Targets")
-
-    c1, c2, c3 = st.columns(3)
-
-    c1.metric("Calories", f"{targets['calories']} kcal")
-    c2.metric("Protein", f"{targets['protein']} g")
-    c3.metric("Carbs", f"{targets['carbs']} g")
-
-    c1, c2, c3 = st.columns(3)
-
-    c1.metric("Fiber", f"{targets['fiber']} g")
-    c2.metric("Water", f"{targets['water']} L")
-    c3.metric("Goal", targets["goal"])
-
-    st.success("✅ Part 1 & Part 2 are working correctly.")
-
-    st.warning(
-        "Tomorrow Part 3 will generate the complete AI meal plan with "
-        "Breakfast, Lunch, Dinner, Snacks, Shopping List, and Premium UI."
-    )
+  
