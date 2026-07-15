@@ -20,7 +20,7 @@ import secrets
 from pathlib import Path
 import random
 from collections import defaultdict
-genai.configure(api_key="YOUR_GEMINI_API_KEY")
+genai.configure(api_key="AQ.Ab8RN6K9MlT9BIPsEAIPmkmzMayTbyf7NxKvMpHM0GtcKWzk7w")
 
 model = genai.GenerativeModel("gemini-2.5-flash")
 
