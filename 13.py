@@ -2355,101 +2355,103 @@ def main():
         st.error("🚨 Glucose may drop into hypoglycemia range. Monitor closely and have fast-acting carbohydrates (juice, glucose tablets) available.")
 
     st.markdown("---")
+# SECTION 10 · EXPORT REPORT (PDF)
+st.markdown("""
+<div class="section-header sh-blue">
+    <div class="section-icon">📄</div>
+    <div class="section-title">SECTION 10 — Export Health Report</div>
+</div>
+""", unsafe_allow_html=True)
 
-    # ════════════════════════════════════════════════════════════════════════════
-    # SECTION 10 · EXPORT REPORT (PDF)
-    # ════════════════════════════════════════════════════════════════════════════
+col_exp1, col_exp2 = st.columns([2, 1])
+with col_exp1:
     st.markdown("""
-    <div class="section-header sh-blue">
-        <div class="section-icon">📄</div>
-        <div class="section-title">SECTION 10 — Export Health Report</div>
+    <div class="glass-card" style="padding:1.2rem">
+        <strong style="color:#00d9ff">📥 Download PDF Health Report</strong><br>
+        <span style="font-size:0.85rem; color:#64748b">
+        Your personalised health report includes patient profile, nutrition summary,
+        glucose predictions, health score, and AI recommendations.
+        </span>
     </div>
     """, unsafe_allow_html=True)
 
-    col_exp1, col_exp2 = st.columns([2, 1])
-    with col_exp1:
-        st.markdown("""
-        <div class="glass-card" style="padding:1.2rem">
-            <strong style="color:#00d9ff">📥 Download PDF Health Report</strong><br>
-            <span style="font-size:0.85rem; color:#64748b">
-            Your personalised health report includes patient profile, nutrition summary,
-            glucose predictions, health score, and AI recommendations.
-            </span>
-        </div>
-        """, unsafe_allow_html=True)
+with col_exp2:
+    if st.button("📥 Generate & Download PDF", key="pdf_btn"):
+        with st.spinner("🔄 Generating your personalised health report..."):
+            patient_info = {
+                'name': name, 'age': age, 'gender': gender,
+                'weight': weight, 'height': height, 'diabetes': diabetes_type,
+            }
+            nutrition_summary = {
+                'calories': total_cal, 'carbs': total_carbs,
+                'protein': total_protein, 'fat': total_fat,
+            }
+            pdf_bytes = generate_pdf_report(
+                patient=patient_info,
+                nutrition=nutrition_summary,
+                glucose_now=current_glucose,
+                predictions=predictions,
+                score=hs,
+                risk=risk,
+                recommendations=recs,
+                bmi=bmi,
+                bmi_cat=bmi_cat,
+            )
+            st.download_button(
+                label="⬇️ Click to Download PDF",
+                data=pdf_bytes,
+                file_name=f"GlucoVision_Report_{name.replace(' ','_')}_{datetime.now().strftime('%Y%m%d_%H%M')}.pdf",
+                mime="application/pdf",
+                key="pdf_download",
+            )
+            st.success("✅ PDF generated successfully!")
 
-    with col_exp2:
-        if st.button("📥 Generate & Download PDF", key="pdf_btn"):
-            with st.spinner("🔄 Generating your personalised health report..."):
-                patient_info = {
-                    'name': name, 'age': age, 'gender': gender,
-                    'weight': weight, 'height': height, 'diabetes': diabetes_type,
-                }
-                nutrition_summary = {
-                    'calories': total_cal, 'carbs': total_carbs,
-                    'protein': total_protein, 'fat': total_fat,
-                }
-                pdf_bytes = generate_pdf_report(
-                    patient=patient_info,
-                    nutrition=nutrition_summary,
-                    glucose_now=current_glucose,
-                    predictions=predictions,
-                    score=hs,
-                    risk=risk,
-                    recommendations=recs,
-                    bmi=bmi,
-                    bmi_cat=bmi_cat,
-                )
-                st.download_button(
-                    label="⬇️ Click to Download PDF",
-                    data=pdf_bytes,
-                    file_name=f"GlucoVision_Report_{name.replace(' ','_')}_{datetime.now().strftime('%Y%m%d_%H%M')}.pdf",
-                    mime="application/pdf",
-                    key="pdf_download",
-                )
-                st.success("✅ PDF generated successfully!")
+st.markdown("---")
 
-    st.markdown("---")
-    def _diet_seed(diabetes_type, bmi_cat, risk):
+# ════════════════════════════════════════════════════════════════════════════
+# SECTION 11 · PREMIUM AI NUTRITION COACH
+# ════════════════════════════════════════════════════════════════════════════
+
+def _diet_seed(diabetes_type, bmi_cat, risk):
     raw = f"{diabetes_type}|{bmi_cat}|{risk}"
     return int(hashlib.md5(raw.encode("utf-8")).hexdigest(), 16) % (10**8)
 
 def _safe_lower(x):
     return str(x).strip().lower()
 
-def _get_food_fields(item):
+def _normalize_food_item(item):
     if isinstance(item, dict):
-        name = item.get("food_name") or item.get("name") or item.get("food") or item.get("item") or "Food"
-        category = item.get("category") or item.get("food_category") or item.get("type") or "General"
-        serving = item.get("serving_size") or item.get("serving") or item.get("portion") or "1 serving"
+        name = item.get("food_name") or item.get("name") or item.get("food") or item.get("item") or item.get("title") or "Food"
+        category = item.get("category") or item.get("food_category") or item.get("type") or item.get("group") or "General"
+        serving = item.get("serving_size") or item.get("serving") or item.get("portion") or item.get("portion_size") or "1 serving"
         calories = item.get("calories") or item.get("kcal") or item.get("energy") or 0
-        protein = item.get("protein") or 0
-        carbs = item.get("carbohydrates") or item.get("carbs") or item.get("carb") or 0
+        protein = item.get("protein") or item.get("protein_g") or 0
+        carbs = item.get("carbohydrates") or item.get("carbs") or item.get("carb") or item.get("carbohydrate") or 0
         fiber = item.get("fiber") or item.get("fibre") or 0
         gi = item.get("gi") or item.get("glycemic_index") or item.get("glycaemic_index")
         return {
             "name": str(name),
             "category": str(category),
             "serving": str(serving),
-            "calories": float(calories) if calories is not None and str(calories) != "" else 0.0,
-            "protein": float(protein) if protein is not None and str(protein) != "" else 0.0,
-            "carbs": float(carbs) if carbs is not None and str(carbs) != "" else 0.0,
-            "fiber": float(fiber) if fiber is not None and str(fiber) != "" else 0.0,
-            "gi": float(gi) if gi is not None and str(gi) != "" else None,
+            "calories": float(calories) if calories not in [None, ""] else 0.0,
+            "protein": float(protein) if protein not in [None, ""] else 0.0,
+            "carbs": float(carbs) if carbs not in [None, ""] else 0.0,
+            "fiber": float(fiber) if fiber not in [None, ""] else 0.0,
+            "gi": float(gi) if gi not in [None, ""] else None,
         }
     vals = list(item) if hasattr(item, "__iter__") else [str(item)]
     return {
         "name": str(vals[0]) if len(vals) > 0 else "Food",
         "category": str(vals[1]) if len(vals) > 1 else "General",
         "serving": str(vals[2]) if len(vals) > 2 else "1 serving",
-        "calories": float(vals[3]) if len(vals) > 3 and vals[3] is not None else 0.0,
-        "protein": float(vals[4]) if len(vals) > 4 and vals[4] is not None else 0.0,
-        "carbs": float(vals[5]) if len(vals) > 5 and vals[5] is not None else 0.0,
-        "fiber": float(vals[6]) if len(vals) > 6 and vals[6] is not None else 0.0,
-        "gi": float(vals[7]) if len(vals) > 7 and vals[7] is not None and str(vals[7]) != "" else None,
+        "calories": float(vals[3]) if len(vals) > 3 and vals[3] not in [None, ""] else 0.0,
+        "protein": float(vals[4]) if len(vals) > 4 and vals[4] not in [None, ""] else 0.0,
+        "carbs": float(vals[5]) if len(vals) > 5 and vals[5] not in [None, ""] else 0.0,
+        "fiber": float(vals[6]) if len(vals) > 6 and vals[6] not in [None, ""] else 0.0,
+        "gi": float(vals[7]) if len(vals) > 7 and vals[7] not in [None, ""] and str(vals[7]) != "" else None,
     }
 
-def _categorize_food(food):
+def _food_category(food):
     text = f"{food['name']} {food['category']}".lower()
     if any(k in text for k in ["egg", "paneer", "tofu", "lentil", "dal", "beans", "chicken", "fish", "curd", "yogurt", "milk", "soy", "sprout"]):
         return "protein"
@@ -2523,7 +2525,7 @@ def _goal_profile(diabetes_type, bmi_cat, risk):
             "priority": ["fiber", "protein", "low_calorie"],
         })
 
-    if "high" in r or "risk" in r:
+    if "high" in r:
         profile.update({
             "carb_mult": profile["carb_mult"] * 0.8,
             "fiber_mult": profile["fiber_mult"] * 1.25,
@@ -2544,6 +2546,7 @@ def _goal_profile(diabetes_type, bmi_cat, risk):
         profile["avoid"] = list(set(profile["avoid"] + ["refined", "sugary"]))
     else:
         profile["goal_text"] = profile["goal_text"] + " Use broad healthy eating patterns."
+
     return profile
 
 def _food_score(food, profile, meal_name, rng):
@@ -2551,7 +2554,7 @@ def _food_score(food, profile, meal_name, rng):
     pro = food["protein"]
     carb = food["carbs"]
     fiber = food["fiber"]
-    cat = _categorize_food(food)
+    cat = _food_category(food)
     text = f"{food['name']} {food['category']}".lower()
 
     score = 0.0
@@ -2602,11 +2605,11 @@ def _food_score(food, profile, meal_name, rng):
 
 def _select_meal_foods(food_items, profile, seed):
     rng = random.Random(seed)
-    foods = [_get_food_fields(x) for x in food_items if x is not None]
+    foods = [_normalize_food_item(x) for x in food_items if x is not None]
     meal_names = ["Breakfast", "Morning Snack", "Lunch", "Evening Snack", "Dinner"]
     scored = {}
     for meal in meal_names:
-        scored[meal] = sorted([( _food_score(f, profile, meal, rng), f) for f in foods], key=lambda x: x[0], reverse=True)
+        scored[meal] = sorted([(_food_score(f, profile, meal, rng), f) for f in foods], key=lambda x: x[0], reverse=True)
 
     chosen = []
     desired = {"Breakfast": 3, "Morning Snack": 1, "Lunch": 3, "Evening Snack": 1, "Dinner": 3}
@@ -2627,7 +2630,7 @@ def _select_meal_foods(food_items, profile, seed):
     return chosen
 
 def _meal_reason(food, profile, meal_name):
-    cat = _categorize_food(food)
+    cat = _food_category(food)
     reasons = []
     if food["protein"] >= 8:
         reasons.append("high protein")
@@ -2723,14 +2726,7 @@ def render_diet_plan(diabetes_type, bmi_cat, risk):
     shopping = []
     avoid_set = set()
     meal_rows = []
-
-    meal_time_labels = {
-        "Breakfast": "7:30 AM",
-        "Morning Snack": "10:30 AM",
-        "Lunch": "1:30 PM",
-        "Evening Snack": "4:30 PM",
-        "Dinner": "7:30 PM",
-    }
+    meal_time_labels = {"Breakfast": "7:30 AM", "Morning Snack": "10:30 AM", "Lunch": "1:30 PM", "Evening Snack": "4:30 PM", "Dinner": "7:30 PM"}
 
     st.markdown("""
     <style>
@@ -2759,6 +2755,7 @@ def render_diet_plan(diabetes_type, bmi_cat, risk):
         st.metric("Day Target", f"{targets['calories']} kcal")
 
     st.progress(min(1.0, 0.45 + (targets["calories"] / 3000.0)))
+
     c5, c6, c7, c8 = st.columns(4)
     with c5:
         st.metric("Protein Target", f"{targets['protein']} g")
@@ -2809,23 +2806,23 @@ def render_diet_plan(diabetes_type, bmi_cat, risk):
                         </div>
                     </div>
                     """, unsafe_allow_html=True)
-                    meal_rows.append({
-                        "Meal": meal,
-                        "Meal Time": meal_time_labels.get(meal, ""),
-                        "Food Name": food["name"],
-                        "Serving Size": food["serving"],
-                        "Calories": round(food["calories"], 1),
-                        "Protein": round(food["protein"], 1),
-                        "Carbohydrates": round(food["carbs"], 1),
-                        "Reason why AI selected this meal": _meal_reason(food, profile, meal),
-                    })
-                    totals["calories"] += food["calories"]
-                    totals["protein"] += food["protein"]
-                    totals["carbs"] += food["carbs"]
-                    totals["fiber"] += food["fiber"]
-                    shopping.append(food["name"])
-                    if any(k in f"{food['name']} {food['category']}".lower() for k in ["fried", "soda", "cake", "pastry", "chips", "sweet", "refined", "white bread"]):
-                        avoid_set.add(food["name"])
+                meal_rows.append({
+                    "Meal": meal,
+                    "Meal Time": meal_time_labels.get(meal, ""),
+                    "Food Name": food["name"],
+                    "Serving Size": food["serving"],
+                    "Calories": round(food["calories"], 1),
+                    "Protein": round(food["protein"], 1),
+                    "Carbohydrates": round(food["carbs"], 1),
+                    "Reason why AI selected this meal": _meal_reason(food, profile, meal),
+                })
+                totals["calories"] += food["calories"]
+                totals["protein"] += food["protein"]
+                totals["carbs"] += food["carbs"]
+                totals["fiber"] += food["fiber"]
+                shopping.append(food["name"])
+                if any(k in f"{food['name']} {food['category']}".lower() for k in ["fried", "soda", "cake", "pastry", "chips", "sweet", "refined", "white bread"]):
+                    avoid_set.add(food["name"])
 
     st.markdown("## AI Health Analysis")
     analysis = []
@@ -2887,13 +2884,6 @@ def render_diet_plan(diabetes_type, bmi_cat, risk):
     st.markdown("".join([f"- {x}\n" for x in water_schedule]))
 
     st.markdown("## AI Summary")
-    summary = (
-        f"The AI selected {len(meal_rows)} meal items across five eating windows, emphasizing "
-        f"{profile['goal_text'].lower()} Expected totals are about {round(totals['calories'])} kcal, "
-        f"{round(totals['protein'])} g protein, {round(totals['carbs'])} g carbohydrates, "
-        f"and {round(totals['fiber'])} g fibre."
-    )
+    summary = f"The AI selected {len(meal_rows)} meal items across five eating windows, emphasizing {profile['goal_text'].lower()} Expected totals are about {round(totals['calories'])} kcal, {round(totals['protein'])} g protein, {round(totals['carbs'])} g carbohydrates, and {round(totals['fiber'])} g fibre."
     _render_card("Today's Goal", "Complete daily guidance", summary, accent="#34D399")
     return meal_rows
-
-  
