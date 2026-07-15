@@ -20,7 +20,9 @@ import secrets
 from pathlib import Path
 import random
 from collections import defaultdict
+genai.configure(api_key="YOUR_GEMINI_API_KEY")
 
+model = genai.GenerativeModel("gemini-2.5-flash")
 
 # ─── ACCOUNT SYSTEM (freemium: free vs premium) ────────────────────────────────
 # NOTE: This is a lightweight local JSON "database" suitable for a prototype /
